@@ -1,0 +1,156 @@
+####################
+# Custom rules: v1.0.2 Update: 6/12/2022 -> Giam thieu False Positive
+####################
+
+########################################################
+## DETECT FILE UPLOAD/ CREATE (.zip, .php, .exe,....)###
+########################################################
+
+- macro: container
+  condition: container.id != host
+
+- macro: open_write
+  condition: >
+   (evt.type=open or evt.type=openat) and
+   (evt.arg.flags contains O_WRONLY or
+   evt.arg.flags contains O_RDWR or
+   evt.arg.flags contains O_CREAT or
+   evt.arg.flags contains O_TRUNC)
+
+- macro: wp_dir
+  condition: fd.directory contains "/uploads" or fd.directory contains "/plugins" or fd.directory contains "/www"
+
+# update 6/12 -> Giam thieu fs tu tien trinh runc
+- macro: process_by_runc
+  condition: proc.exe != runc
+
+
+#RUNNABLE FILE
+- macro: file_extension_runnable
+  condition: fd.filename icontains .php or
+             fd.filename icontains .pht or
+             fd.filename icontains .phtml or
+             fd.filename icontains .sh or
+             fd.filename icontains .inc or
+             fd.filename icontains .exe
+
+- rule: open_and_write_runnable_file
+  desc: someone create file runnable in /uploads or /plugins
+  condition: container and open_write and wp_dir and file_extension_runnable and process_by_runc
+  output: "WAZUH-FALCO Someone Create file on directory=%fd.name: type=CREATE extension=runnable fd.filename=%fd.filename container_id=%container.id container_name=%container.name shell=%proc.name parent=%proc.pname cmdline=%proc.cmdline evt.type=%evt.type user.shell=%user.shell user.uid=%user.uid user.name=%user.name proc.pid=%proc.pid proc.exe=%proc.exe"
+  priority: CRITICAL
+
+
+#ZIP FILE
+- macro: file_extension_zip
+  condition: fd.filename icontains .zip
+
+- rule: open_and_write_zip_file
+  desc: someone create file zip in /uploads or plugins
+  condition: container and open_write and wp_dir and file_extension_zip
+  output: "WAZUH-FALCO Someone Create file on directory=%fd.name: type=CREATE extension=zip filename=%fd.filename container_id=%container.id container_name=%container.name shell=%proc.name parent=%proc.pname cmdline=%proc.cmdline evt.type=%evt.type user.shell=%user.shell user.uid=%user.uid user.name=%user.name proc.pid=%proc.pid proc.exe=%proc.exe"
+  priority: CRITICAL
+
+############################
+##Detect Command Execution##
+############################
+
+- list: black_list_shell
+  items: [bash, sh, nc, su, sudo, whoami, ls, rm, apt, curl, git, touch, wget, git, mv, cp, ssh, ssh-keygen, python, perl, php, echo, ncat, openssl, netcat, awk, telnet, lua, rlwrap, socat, vi, vim, nano, stty]
+
+- macro: spawned_process
+  condition: evt.type = execve and evt.dir=<
+
+#Update 6/12/2022 Bo sung mot so false positive
+
+- macro: whitelist_proc
+  condition: proc.pname != "entrypoint.py" and
+             proc.name != "entrypoint.py" and
+             proc.cmdline != "curl -f http://localhost:8080" and
+             not (proc.cmdline contains "sh -c kill") and
+             proc.name != "zmmailboxdmgr" and
+             proc.pcmdline contains "zimbra" and not
+             proc.pcmdline contains "runc" and not
+             proc.cmdline != "rm -r /var/run/apache2/apache2.pid" and not
+             proc.cmdline contains "awk {print" and
+             proc.cmdline != "mv -f /etc/localtime.dpkg-new /etc/localtime"
+             
+- macro: command_by_user
+  condition: user.shell = "/bin/bash" or user.shell ="/bin/sh"
+
+- rule: run_shell_in_container
+  desc: A shell was spawned by a non-shell program in a container. Container entrypoints are excluded.
+  condition: container and spawned_process and proc.pname exists and command_by_user and proc.name in (black_list_shell) and whitelist_proc
+  output: "WAZUH-FALCO Someone Executed command %proc.cmdline in a container: type=EXECUTE user.uid=%user.uid user.shell = %user.shell user=%user.name container_id=%container.id container_name=%container.name shell=%proc.name parent=%proc.pname cmdline=%proc.cmdline"
+  priority: CRITICAL
+
+#######################
+#DETECT RCE##
+#######################
+#Nguyen Thanh Long added a comment - 28/11/2022 02:20 PM
+# Chua cau lenh pho bien cua ke tan cong
+- macro: blacklist_command
+  condition: proc.cmdline icontains "php" or
+             (proc.cmdline icontains "python" and proc.cmdline icontains "socket") or
+             proc.cmdline icontains "nc" or
+             proc.cmdline icontains "netcat" or
+             proc.cmdline icontains "ncat" or
+             proc.cmdline icontains "openssl" or
+             proc.cmdline icontains "mkfifo" or
+             proc.cmdline icontains "export" or
+             proc.cmdline icontains "tcp" or
+             proc.cmdline icontains "udp" or
+             proc.cmdline icontains "telnet" or
+             proc.cmdline icontains "perl -e" or
+             proc.cmdline icontains "socket" or
+             proc.cmdline icontains "ls" or
+             proc.cmdline icontains "pwd" or
+             proc.cmdline icontains "echo" or
+             proc.cmdline icontains "cat" or
+             proc.cmdline icontains "nano" or
+             proc.cmdline icontains "vi" or
+             proc.cmdline icontains "vim" or
+             proc.cmdline icontains "whoami" or
+             proc.cmdline icontains "id" or
+             proc.cmdline icontains "rm" or
+             proc.cmdline icontains "cp" or
+             proc.cmdline icontains "remove" or
+             proc.cmdline icontains "nslookup" or
+             proc.cmdline icontains "arp" or
+             proc.cmdline icontains "uname" or
+             proc.cmdline icontains "groups" or
+             proc.cmdline icontains "tcpdump" or
+             proc.cmdline icontains "useradd" or
+             proc.cmdline icontains "crontab" or
+             proc.cmdline icontains "kill" or
+             proc.cmdline icontains "curl" or
+             proc.cmdline icontains "wget" or
+             proc.cmdline icontains "systemctl"
+
+# Chua path dau hieu tan cong
+- macro: blacklist_arguments
+  condition: proc.cmdline icontains "/etc" or
+             proc.cmdline icontains "/bin/bash" or
+             proc.cmdline icontains "socket"
+
+- macro: httpd_actions
+  condition: proc.pcmdline contains "httpd"
+
+- rule: Container Actions
+  desc: Detect Actions RCE.
+  condition: container and spawned_process and user.uid != 0 and blacklist_command and blacklist_arguments and httpd_actions
+  output: "WAZUH_FALCO Someone REMOTE EXECUTED command (RCE) '%proc.exeline' on container: type=REMOTE proc.pcmdline=%proc.pcmdline container_id=%container.id container_name=%container.name proc.exe=%proc.exe proc.exeline=%proc.exeline user.uid=%user.uid cmdline=%proc.cmdline"
+  priority: CRITICAL
+  tags: [rce]
+###############
+##################
+# Update 29/11/2022
+# Them cau hinh detect command reverse shell
+####################
+
+- rule: Reverse shell
+  desc: Detect redirecting stdout/stdin to network connection in container (potential reverse shell).
+  condition: container and fd.rip exists and fd.num in (0,1) and fd.type in ("ipv4", "ipv6") and evt.dir=>
+  output: >
+    WAZUH_FALCO REVERSE SHELL exec command '%proc.cmdline': rip=%fd.rip fd.lip=%fd.lip user=%user.name user_loginuid=%user.loginuid %container.info process=%proc.name parent=%proc.pname type=RVSHELL terminal=%proc.tty container_id=%container.id image=%container.image.repository fd.name=%fd.name fd.num=%fd.num fd.type=%fd.type fd.sip=%fd.sip cmdline=%proc.cmdline
+  priority: CRITICAL
