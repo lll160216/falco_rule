@@ -1,0 +1,105 @@
+<!--
+09:55:39.347696899: Critical Falco Someone Create file on directory=/bitnami/wordpress/wp-content/plugins/akismet/abcdef (type=CREATE user=<NA> container_id=b69530995bb6 container_name=bitnami-docker-wordpress_wordpress_1 shell=httpd parent=httpd cmdline=httpd -f /opt/bitnami/apache/conf/httpd.conf -D FOREGROUND evt.arg=O_TRUNC|O_CREAT|O_WRONLY evt.type=openat user.shell=<NA> user.uid=1001 user.name=<NA> proc.pid=23784 proc.exe=/opt/bitnami/apache/bin/httpd)
+
+Nov 23 17:27:14 TEST-WEB-AP-01 falco: 17:27:14.791674379: Critical WAZUH-FALCO Someone Create file on directory=/var/www/html/wp-content/plugins/wp_active_log/footer.php: type=CREATE extension=runnable fd.filename=footer.php container_id=d17859f153df container_name=website_taskgo.1.h4ej6uv554jscgfflzu5c97e6 shell=apache2 parent=apache2 cmdline=apache2 -DFOREGROUND evt.type=openat user.shell=/usr/sbin/nologin user.uid=33 user.name=www-data proc.pid=1394856 proc.exe=apache2
+-->
+
+
+<!--<decoder name="falco">-->
+<!-- <after_prematch>\d\d:\d\d:\d\d.\d\d\d\d\d\d\d\d\d: \S+ Falco</after_prematch>-->
+<!-- <program_name>falco</program_name>-->
+<!--</decoder>-->
+
+<decoder name="falco">
+    <prematch type="pcre2">\w+\sWAZUH\-FALCO\s</prematch>
+</decoder>
+
+<decoder name="falco-field">
+    <parent>falco</parent>
+    <regex>user.name=(\S+)</regex>
+    <order>user.name</order>
+</decoder>
+
+<decoder name="falco-field">
+    <parent>falco</parent>
+    <regex>type=(\S+)</regex>
+    <order>falco.type</order>
+</decoder>
+
+<decoder name="falco-field">
+    <parent>falco</parent>
+    <regex>directory=(\S+)</regex>
+    <order>falco.directory</order>
+</decoder>
+
+<decoder name="falco-field">
+    <parent>falco</parent>
+    <regex>container_id=(\S+)</regex>
+    <order>container.id</order>
+</decoder>
+
+<decoder name="falco-field">
+    <parent>falco</parent>
+    <regex>container_name=(\S+)</regex>
+    <order>container.name</order>
+</decoder>
+
+<decoder name="falco-field">
+    <parent>falco</parent>
+    <regex>proc.exe=(\S+)</regex>
+    <order>proc.exe</order>
+</decoder>
+
+<decoder name="falco-field">
+    <parent>falco</parent>
+    <regex>shell=(\S+)</regex>
+    <order>falco.shell</order>
+</decoder>
+<!-- Update 24/11 ntlong: Them decode user-->
+<decoder name="falco-field">
+    <parent>falco</parent>
+    <regex>user=(\S+)</regex>
+    <order>falco.user</order>
+</decoder>
+
+<decoder name="falco-field">
+    <parent>falco</parent>
+    <regex>filename=(\S+)</regex>
+    <order>falco.filename</order>
+</decoder>
+
+<decoder name="falco-field">
+    <parent>falco</parent>
+    <regex>extension=(\S+)</regex>
+    <order>falco.extension</order>
+</decoder>
+<!-- Update 24/11 ntlong: Cấu hình lấy tất cả command line
+<decoder name="falco-field">
+    <parent>falco</parent>
+    <regex>cmdline=(\S+)</regex>
+    <order>falco.cmdline</order>
+</decoder>
+-->
+<decoder name="falco-field">
+        <parent>falco</parent>
+        <regex>cmdline=(\.+)</regex>
+        <order>falco.fullcmdline</order>
+</decoder>
+
+<decoder name="falco-field">
+        <parent>falco</parent>
+        <regex>rip=(\d+.\d+.\d+.\d+)</regex>
+        <order>falco.rip</order>
+</decoder>
+
+<decoder name="falco-field">
+        <parent>falco</parent>
+        <regex>fd.lip=(\d+.\d+.\d+.\d+)</regex>
+        <order>falco.lip</order>
+</decoder>
+<!-- Update 30/11 update loai file de phuc vu tim kiem -->
+<decoder name="falco-field">
+        <parent>falco</parent>
+        <regex>file=(\S+)</regex>
+        <order>falco.file</order>
+</decoder>

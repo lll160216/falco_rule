@@ -1,0 +1,30 @@
+<group name="falco">
+    <rule id="95000" level="3">
+        <decoded_as>falco</decoded_as>
+        <description>Grouping for the Falco rules.</description>
+    </rule>
+    <rule id="95001" level="4">
+        <if_sid>95000</if_sid>
+        <field name="falco.type">CREATE</field>
+        <description>[Wordpress] CREATED "$(falco.filename)" file via "$(falco.shell)" </description>
+        <group>wp-webshell</group>
+    </rule>
+    <rule id="95002" level="4">
+        <if_sid>95000</if_sid>
+        <field name="falco.type">EXECUTE</field>
+        <description>[Wordpress] Command EXECUTED: "$(falco.shell)" on container </description>
+        <group>wp-webshell</group>
+    </rule>
+    <rule id="95003" level="5">
+        <if_sid>95000</if_sid>
+        <field name="falco.type">REMOTE</field>
+        <description>[Wordpress] Remote Command EXECUTED: "$(falco.cmdline)" on container</description>
+        <group>wp-webshell</group>
+    </rule>
+    <rule id="95004" level="7">
+        <if_sid>95000</if_sid>
+        <field name="falco.type">RVSHELL</field>
+        <description>[Wordpress] Reverse Shell EXECUTED: "$(falco.cmdline)" on container</description>
+        <group>wp-webshell</group>
+    </rule>
+</group>
